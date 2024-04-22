@@ -1,86 +1,221 @@
 %{
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+extern FILE* yyin;
+extern int yylex();
+void yyerror(const char *msg);
 %}
 
 %union {
     char *str;      // String value for IDENTIFIER, CHAR
     int num_int;    // Integer value for INTEGER
-    float num_float; // Float value for FLOAT_NUM
+    float num_float; // Float value for FLOAT
     int boolean;    // Boolean value for BOOLEAN
-    int datatype;   // Data type value for INT_TYPE, FLOAT_TYPE, CHAR_TYPE, VOID_TYPE, BOOL_TYPE
 }
 
 %token <str> IDENTIFIER CHAR
 %token <num_int> INTEGER
-%token <num_float> FLOAT_NUM
+%token <num_float> FLOAT
 %token <boolean> BOOLEAN
-%token <datatype> INT_TYPE FLOAT_TYPE CHAR_TYPE VOID_TYPE BOOL_TYPE
+%token TYPE_INT TYPE_FLOAT TYPE_CHAR TYPE_VOID TYPE_BOOL
 %token IF ELSE_IF ELSE RETURN BREAK CONTINUE FOR WHILE
-%token LEFT_PAREN RIGHT_PAREN LEFT_BRACE RIGHT_BRACE SEMICOLON COMMA DOT ASSIGNMENT INCREMENT DECREMENT OPERATOR RELATIONAL ERROR
+%token LPAREN RPAREN LBRACE RBRACE SEMICOLON COMMA DOT ASSIGNMENT INCREMENT DECREMENT OPERATOR RELATIONAL
+%token PRINT ERROR HASHTAG INCLUDE HEADER
 %token SIN COS TAN ARCSIN ARCCOS ARCTAN
 
-%start program 
-/*
-start is a directive -an instruction, that indicates which non-terminal the parser should start with when parsing. Think literally of the 'S' in S->A we studied in class.
-now, "%start program" means that our starting symbol is "program", which you will see defined below
-*/
+%start program
+
+%type <boolean> evaluate
 
 %%
-//grammar rules specify how to recognize tokens in the input text
+program : action
+        | program action
+        ;
 
-program : statement_list;
-// this means S -> A
+action : HASHTAG INCLUDE HEADER
+       | value_type IDENTIFIER SEMICOLON
+       | return_type IDENTIFIER ending SEMICOLON
+       | return_type IDENTIFIER ending LBRACE global_inside RBRACE
+       ;
 
-statement_list : statement | statement_list statement;
-// A -> B | AB 
+global_inside : RETURN value SEMICOLON
+              | statement
+              | global_inside statement
+              ;
 
-statement : IF '(' expression ')' statement
-          | IF '(' expression ')' statement ELSE statement
-          | ELSE_IF '(' expression ')' statement;
-/*
-B -> a(C)B | a(C)BbB | c(C)B
-IF, ELSE, and ELSE_IF are terminal symbols. They are tokens that do not derive into other statements.
-basically, andything in ALL CAPS is a token and therefore a terminal symbol
-*/
+statement : conditional_statement
+          | iterative_statement
+          | declaration SEMICOLON
+          | p_statement SEMICOLON
+          ;
 
-expression : term | trig_func | expression '+' term | expression '-' term;
-//now you get the point
+conditional_statement : IF evaluate LBRACE inside
+                      | ELSE IF evaluate LBRACE inside
+                      | ELSE LBRACE inside
+                      ;
 
-term : factor | term '*' factor | term '\' factor;
+iterative_statement : WHILE evaluate LBRACE inside
+                     | FOR LPAREN TYPE_INT IDENTIFIER ASSIGNMENT int SEMICOLON IDENTIFIER  RELATIONAL int SEMICOLON IDENTIFIER p_or_m RPAREN LBRACE inside
+                     ;
 
-factor : primary | factor '^' primary;
+inside : RBRACE
+       | hack RBRACE
+       | inside statement
+       ;
 
-primary : INTEGER | FLOAT_NUM | IDENTIFIER | '(' expression ')';
+hack : RETURN value SEMICOLON
+     | BREAK SEMICOLON
+     | CONTINUE SEMICOLON
+     ;
 
-trig_func : SIN '(' expression ')'  { $$ = sin($3); }
-          | COS '(' expression ')'  { $$ = cos($3); }
-          | TAN '(' expression ')'  { $$ = tan($3); }
-          | ARCSIN '(' expression ')'  { $$ = arcsin($3); }
-          | ARCCOS '(' expression ')'  { $$ = arccos($3); }
-          | ARCTAN '(' expression ')'  { $$ = arctan($3); };
-*/
-ok, let's break this down. Now, we understand the first part of this which means "sin(x)", but what does "{ $$ = sin($3); }" mean? 
-the curly braces are used to enclose actions or code to be execute when the corresponding grammar rule is matched during parsing. ok got it, so it means {action}. This is called a "semantic action", which basically means that it's performing a meaningful action according to the code snippet that preceeded it.
-$$ represents the the value associated with the non-terminal symbol of the LHS (left hand side). Basically, it means that '$$' is a placeholder for the value we will be computed for 'trig_func'
-'$3' refers to the 3rd symbol on the RHS (right hand side), hence the '3' in '$3', which in this case is 'expression'. Now, '$' is basically a character used to refer to specific production rules, with the exception of '$$' referring to the LHS (the thing we're producing from). So, '$(some number)' refers to the number specified after '$'.
-sin($3) computes the value of the expression in the paranthesis
-and finally, the computed value of 'sin($3) is assigned to '$$', which means that the value of the 'trig_func' symbol will be set to the computed value of the sine function that applied to the expression inside the paranthesis. Please ask if u have questions.
-*/
+ending : LPAREN RPAREN
+       | LPAREN argument RPAREN
+       ;
 
+argument : value
+         | argument COMMA value
+         ;
+
+evaluate : LPAREN value RELATIONAL value RPAREN {
+        switch($3) {
+            case '==':
+                if ($2 == $4) {
+                    $$ = 1;
+                } else {
+                    $$ = 0;
+                }
+                break;
+            case '!=':
+                if ($2 != $4) {
+                    $$ = 1;
+                } else {
+                    $$ = 0;
+                }
+                break;
+            case '<=':
+                if ($2 <= $4) {
+                    $$ = 1;
+                } else {
+                    $$ = 0;
+                }
+                break;
+            case '>=':
+                if ($2 >= $4) {
+                    $$ = 1;
+                } else {
+                    $$ = 0;
+                }
+                break;
+            case '<':
+                if ($2 < $4) {
+                    $$ = 1;
+                } else {
+                    $$ = 0;
+                }
+                break;
+            case '>':
+                if ($2 > $4) {
+                    $$ = 1;
+                } else {
+                    $$ = 0;
+                }
+                break;
+            default:
+                yyerror("Invalid Relational Operator")
+            }
+         }
+ 	     | LPAREN BOOLEAN RPAREN                {$$ = $2;}
+         | LPAREN IDENTIFIER RPAREN    {$$ = $2;}
+         ;
+
+declaration : value_type IDENTIFIER
+            | value_type IDENTIFIER declare   {$2 = $3}
+	        | IDENTIFIER declare
+	        | IDENTIFIER ending
+            ;
+
+declare : ASSIGNMENT value_statement        {$$ = $2}
+	    | ASSIGNMENT value                  {$$ = $2}
+        | ASSIGNMENT IDENTIFIER ending      {$$ = $2}
+        ;
+
+value_statement : trig
+			    | num_value
+			    | value_statement OPERATOR num_value {
+                    switch ($2) {
+                        case '+':
+                            $$ = $1 + $3;
+                            break;
+                        case '-':
+                            $$ = $1 - $3;
+                            break;
+                        case '*':
+                            $$ = $1 * $3;
+                            break;
+                        case '/':
+                            if ($3 != 0) {
+                                $$ = $1 / $3; // Division
+                            } else {
+                                yyerror("Division by zero");
+                            }
+                            break;
+                        case '%':
+                            $$ = $1 % $3;
+                            break;
+                        case '^':
+                            $$ = pow($1, $3)
+                            break;
+                        default:
+                            yyerror("Invalid Operator")
+                    }
+                }
+                ;
+
+trig : SIN LPAREN value_statement RPAREN        { $$ = sin($3); }
+     | COS LPAREN value_statement RPAREN        { $$ = cos($3); }
+     | TAN LPAREN value_statement RPAREN        { $$ = tan($3); }
+     | ARCSIN LPAREN value_statement RPAREN     { $$ = asin($3); }
+     | ARCCOS LPAREN value_statement RPAREN     { $$ = acos($3); }
+     | ARCTAN LPAREN value_statement RPAREN     { $$ = atan($3); }
+     ;
+
+p_statement : PRINT LPAREN CHAR RPAREN           {printf("%c\n", $3);}
+            ;
+
+value_type : TYPE_INT
+	       | TYPE_FLOAT
+	       | TYPE_CHAR
+	       | TYPE_BOOL
+           ;
+
+return_type : value_type
+	        | TYPE_VOID
+            ;
+
+int : INTEGER
+    | IDENTIFIER
+    ;
+
+num_value : INTEGER
+	      | FLOAT
+	      | IDENTIFIER
+          ;
+
+p_or_m : INCREMENT
+	   | DECREMENT
+       ;
+
+value : INTEGER
+	  | FLOAT
+	  | CHAR
+	  | BOOLEAN
+      | IDENTIFIER
+      ;
 
 %%
 
 void yyerror(const char *msg) {
     fprintf(stderr, "Parser error: %s\n", msg);
 }
-
-int main() {
-    yyparse();
-    return 0;
-}
-
-yyerror(char* s) {
-    printf("ERROR: %s\n", s);
-    return 0;
-}
-
