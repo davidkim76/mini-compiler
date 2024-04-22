@@ -1,34 +1,34 @@
 %{
 #include <stdio.h>
 #include <parser.tab.h>
+
 %}
 
-
-//lexical rules specified by regex
 DIGIT               [0-9]
 LETTER              [a-zA-Z]
 IDENT               {LETTER}({LETTER}|{DIGIT})*
 INT                 {DIGIT}+
-FLOAT               {DIGIT}+(\.{DIGIT}+)?
+NUM_FLOAT           {DIGIT}+(\.{DIGIT}+)?
 STRING              \"([^\"\\]|\\.)*\"
-OPERATOR            [\+\-\*\/\%\^\&]
+OPERATOR            [\+\-\*\/\%\^]
 RELATIONAL          (==|!=|<=|>=|<|>)
 SPACE               [ \t\n]
-COMMENT             ("//"(.*)|"/\*"(.*?)"\*/")      
+COMMENT             ("//"(.*)|"/\*"(.*?)"\*/")
+HEADER              <w+>
 
 %%
-//define actions taken when tokens are matched to user input
 IDENT               {yylval.str = strdup(yytext); return IDENTIFIER;}
 INT                 {yylval.num_int = atoi(yytext); return INTEGER;}
-FLOAT               {yylval.num_float = atof(yytext); return FLOAT_NUM;}
+NUM_FLOAT           {yylval.num_float = atof(yytext); return FLOAT;}
 CHAR                {yylval.str = strdup(yytext); return CHAR}
 "true"              {yylval.boolean = 1; return BOOLEAN;}
 "false"             {yylval.boolean = 0; return BOOLEAN;}
-"int"               {return INT_TYPE;}
-"float"             {return FLOAT_TYPE;}
-"char"              {return CHAR_TYPE;}
-"void"              {return VOID_TYPE;}
-"bool"              {return BOOL_TYPE;}
+"int"               {return TYPE_INT;}
+"float"             {return TYPE_FLOAT;}
+"char"              {return TYPE_CHAR;}
+"void"              {return TYPE_VOID;}
+"bool"              {return TYPE_BOOL;}
+"print"             {return PRINT}
 "if"                {return IF;}
 "else if"           {return ELSE_IF;}
 "else"              {return ELSE;}
@@ -37,31 +37,49 @@ CHAR                {yylval.str = strdup(yytext); return CHAR}
 "continue"          {return CONTINUE}
 "for"               {return FOR;}
 "while"             {return WHILE;}
-"("                 {return LEFT_PAREN;}
-")"                 {return RIGHT_PAREN;}
-"{"                 {return LEFT_BRACE;}
-"}"                 {return RIGHT_BRACE;}
+"("                 {return LPAREN;}
+")"                 {return RPAREN;}
+"{"                 {return LBRACE;}
+"}"                 {return RBRACE;}
 ";"                 {return SEMICOLON;}
 ","                 {return COMMA;}
 "."                 {return DOT;}
 "="                 {return ASSIGNMENT;}
 "++"                {return INCREMENT;}
 "--"                {return DECREMENT;}
-[ \t\n]             ; //ignore
-"sin"               {return SIN;}
-"cos"               {return COS;}
-"tan"               {return TAN;}
-"arcsin"            {return ARCSIN;}
-"arccos"            {return ARCCOS;}
-"arctan"            {return ARCTAN;}
+"#"                 {return HASHTAG}
+HEADER              {yylval.str = strdup(yytext); return HEADER;}
 OPERATOR            {yylval.str = strdup(yytext); return OPERATOR;}
 RELATIONAL          {yylval.str = strdup(yytext); return RELATIONAL;}
-SPACE               {}
-COMMENT             {}
-.                   {return ERROR;}
-
+SPACE               {;}
+COMMENT             {;}
+.                   {return yyerror;}
 %%
 
-yywrap() {
+void readFile(const char* filename) {
+    FILE* file = fopen(filename, "r");
+    if (!file) {
+        fprintf(stderr, "Error opening file: %s\n", filename);
+        exit(1);
+    }
 
+    yyrestart(file);
+}
+
+
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <input_file>\n", argv[0]);
+        return 1;
+    }
+
+    readFile(argv[1]);
+
+    yylex();
+
+    return 0;
+}
+
+int yywrap() {
+    return 1;
 }
